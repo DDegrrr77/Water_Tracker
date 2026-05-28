@@ -43,7 +43,7 @@ function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: ()
       
       <header className={cn(
         "absolute top-0 w-full h-16 bg-white/40 backdrop-blur-xl border-b border-white/20 flex items-center justify-between px-6 z-40 transition-transform duration-300",
-        scrollDirection === 'up' ? "-translate-y-full" : "translate-y-0"
+        scrollDirection === 'down' ? "-translate-y-full" : "translate-y-0"
       )}>
         <div className="flex items-center gap-2 text-[#0058bf]">
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6c.6 0 1.2-.2 1.7-.6C4.8 4.6 5.9 4 7 4s2.2.6 3.3 1.4C11.4 6 12.6 6.5 14 6.5s2.6-.5 3.7-1.1C18.8 4.6 19.9 4 21 4v2c-1.1 0-2.2.6-3.3 1.4C16.6 8 15.4 8.5 14 8.5s-2.6-.5-3.7-1.1C9.2 6.6 8.1 6 7 6s-2.2.6-3.3 1.4C2.6 8 1.4 8.5 0 8.5V6.5h2z"/><path d="M2 12c.6 0 1.2-.2 1.7-.6C4.8 10.6 5.9 10 7 10s2.2.6 3.3 1.4c1.1.6 2.3 1.1 3.7 1.1s2.6-.5 3.7-1.1c1.1-.8 2.2-1.4 3.3-1.4v2c-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1s-2.6-.5-3.7-1.1c-1.1-.8-2.2-1.4-3.3-1.4-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1v-2h2z"/><path d="M2 18c.6 0 1.2-.2 1.7-.6.1-.1.2-.1.3-.2C5.1 16.5 6 16 7 16s1.9.5 3 1.2c.1.1.2.1.3.2 1.1.8 2.3 1.1 3.7 1.1s2.6-.5 3.7-1.1c.1-.1.2-.1.3-.2 1.1-.7 2-1.2 3-1.2v2c-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1s-2.6-.5-3.7-1.1c-1.1-.8-2.2-1.4-3.3-1.4-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1v-2h2z"/></svg>
@@ -67,7 +67,7 @@ function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: ()
 
       <nav className={cn(
         "absolute bottom-0 w-full bg-white/80 backdrop-blur-xl border-t border-white/40 pb-safe shadow-[0_-8px_32px_0_rgba(0,119,255,0.08)] z-50 transition-transform duration-300",
-        scrollDirection === 'down' ? "translate-y-full" : "translate-y-0"
+        scrollDirection === 'up' ? "translate-y-full" : "translate-y-0"
       )}>
         <div className="flex justify-around items-center h-20 px-4">
           <NavItem
