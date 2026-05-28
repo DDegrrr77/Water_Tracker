@@ -3,7 +3,7 @@ import { UserSettings, HydrationLog, DrinkType } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { sendBrowserNotification, requestNotificationPermission } from '../lib/notifications';
 import { calculateCurrentRecommended, calculateTotalRecommended } from '../lib/utils';
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, format } from 'date-fns';
 
 export const defaultSettings: UserSettings = {
   weight: 60,

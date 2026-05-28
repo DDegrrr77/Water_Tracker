@@ -289,14 +289,6 @@ export function UserSelection({ users, setUsers, onSelectUser }: Props) {
                     </div>
                     <span className="font-semibold text-slate-800">{u.name}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={(e) => promptDeleteUser(u, e)}
-                    className="absolute -top-2 -right-2 bg-red-100/90 backdrop-blur-sm text-red-600 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:bg-red-500 hover:text-white transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100 z-10"
-                    aria-label="사용자 삭제"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
                 </div>
               ))}
               
@@ -309,9 +301,12 @@ export function UserSelection({ users, setUsers, onSelectUser }: Props) {
               </button>
             </div>
             
-            <div className="mt-auto pb-8">
+            <div className="mt-auto pb-8 flex flex-col items-center gap-2">
               <p className="text-center text-slate-500/70 text-[10px] font-bold tracking-widest uppercase">
                 By continuing you agree to our terms
+              </p>
+              <p className="text-center text-slate-400 text-[10px] font-medium tracking-widest uppercase">
+                v1.0.0
               </p>
             </div>
           </div>
