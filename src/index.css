@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #0072CE;
+  --color-primary-50: #e5f1fa;
+  --color-primary-100: #cce3f4;
+  --color-primary-200: #99c6ea;
+  --color-primary-300: #66aae0;
+  --color-primary-400: #338dd5;
+  --color-primary-500: #0072CE;
+  --color-primary-600: #005ba5;
+  --color-primary-700: #00447c;
+  --color-primary-800: #002e52;
+  --color-primary-900: #001729;
+
+  --animate-wave: wave 2s infinite linear;
+  @keyframes wave {
+    0% { transform: translateX(0); }
+    50% { transform: translateX(-25%); }
+    100% { transform: translateX(0); }
+  }
+}
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #0f172a;
+    --card: #ffffff;
+    --card-foreground: #0f172a;
+    --border: #e2e8f0;
+  }
+  
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: #0f172a;
+      --foreground: #f8fafc;
+      --card: #1e293b;
+      --card-foreground: #f8fafc;
+      --border: #334155;
+    }
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}
