@@ -19,7 +19,7 @@ export const renderCharacter = (char: string, className?: string) => {
 
 interface Props {
   users: User[];
-  setUsers: (users: User[]) => void;
+  setUsers: React.Dispatch<React.SetStateAction<User[]>>;
   onSelectUser: (user: User) => void;
 }
 
