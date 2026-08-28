@@ -54,6 +54,7 @@
 | 날짜 | date-fns | ^4.3.0 | `ko` locale, 일/주/월 계산 |
 | 브라우저 알림 | Web Notification API | - | `src/lib/notifications.ts` |
 | PWA | manifest.json + sw.js | - | 서비스워커는 패스스루(pass-through)만 구현 |
+| PADO 브릿지 | postMessage + localStorage 이벤트 | - | iframe 임베딩 시 부모 창과 양방향 동기화 (`src/lib/pado.ts`, `src/hooks/usePadoBridge.ts`) |
 | 기타(스캐폴딩 잔재) | @google/genai, dotenv, express | - | `src/`에서 미사용, AI Studio 앱 생성 시 포함된 의존성 |
 
 ### 2.1 주요 npm 스크립트
@@ -84,10 +85,11 @@ Water_Tracker/
 ├── public/
 │   ├── icon.svg              # 앱 아이콘 (SVG, manifest·apple-touch 용)
 │   ├── manifest.json         # PWA 매니페스트
-│   └── sw.js                 # 서비스워커 (install/activate/fetch 패스스루)
+│   ├── sw.js                 # 서비스워커 (install/activate/fetch 패스스루)
+│   └── pado-harness.html     # PADO 브릿지 테스트 하니스 (iframe 임베딩 시뮬레이터)
 └── src/
     ├── main.tsx              # 엔트리: createRoot + StrictMode + index.css
-    ├── App.tsx               # 루트: 사용자 세션, 탭 네비게이션, 스크롤 반응 헤더/네비
+    ├── App.tsx               # 루트: 사용자 세션, 탭 네비게이션, PADO 브릿지 마운트, 스크롤 반응 헤더/네비
     ├── types.ts              # 도메인 타입 (DrinkType/User/UserSettings/HydrationLog/Tab)
     ├── index.css             # Tailwind v4, @theme (primary 색상, wave 키프레임), 다크모드 변수
     ├── components/
@@ -97,10 +99,13 @@ Water_Tracker/
     │   ├── SettingsTab.tsx   # 설정: 프로필·음료 설정·알림·백업/복구·계정
     │   └── Toast.tsx         # 수분 부족 경고 토스트 (3초 자동 숨김)
     ├── hooks/
-    │   └── useLocalStorage.ts # localStorage ↔ React state 동기화 훅
+    │   ├── useLocalStorage.ts # localStorage ↔ React state 동기화 훅 (변경 이벤트 발행/구독)
+    │   └── usePadoBridge.ts   # PADO 부모 창 양방향 동기화 브릿지 훅
     ├── lib/
     │   ├── utils.ts          # cn(), 권장량 계산 함수
-    │   └── notifications.ts  # 브라우저 알림 권한/발송
+    │   ├── notifications.ts  # 브라우저 알림 권한/발송
+    │   ├── storage.ts        # localStorage 공용 유틸 + aquaflow:storage-change 이벤트
+    │   └── pado.ts           # PADO 프로토콜/페이로드 정의 (appId, 메시지 타입, summary 계산)
     └── store/
         └── HydrationContext.tsx # 전역 상태 Provider + useHydration() 훅
 ```
@@ -201,12 +206,18 @@ export type Tab = 'home' | 'stats' | 'settings';
 | `hydration_settings_{userId}` | `UserSettings` | 사용자 생성 직후 (기본값+입력값) | 사용자 삭제 시 `removeItem` |
 | `hydration_logs_{userId}` | `HydrationLog[]` | 최초 기록 시 (빈 배열 기본) | 사용자 삭제 시 `removeItem` |
 
-### 5.2 영속화 메커니즘 (`useLocalStorage` 훅)
+### 5.2 영속화 메커니즘 (`useLocalStorage` 훅 + `lib/storage.ts`)
 
 - 초기화: `useState` 지연 초기화로 `localStorage`에서 JSON 파싱 → 없으면 `initialValue`
-- 쓰기: `setValue()` 호출 시 **React state와 `localStorage.setItem`을 동시에** 수행
-- 동기화: `key`가 바뀌면 `useEffect`에서 다시 읽어옴 (같은 키 내 탭 간 동기화는 미지원 — 기술 부채 참고)
+- 쓰기: `setValue()` 호출 시 **React state와 `localStorage.setItem`을 동시에** 수행 후
+  `aquaflow:storage-change` 커스텀 이벤트 발행 (`lib/storage.ts`의 `writeLocalJson`/`setValue`)
+- 동기화:
+  - `key`가 바뀌면 `useEffect`에서 다시 읽어옴 (사용자 전환)
+  - 같은 키의 외부 변경(`aquaflow:storage-change` 이벤트, PADO 복원, 다른 탭의 `storage` 이벤트)을
+    감지해 자동 재조회
+- 함수형 업데이트: `storedValueRef`를 사용해 최신 값 기준으로 계산 (클로저 스테일 방지)
 - 에러 처리: 파싱/쓰기 실패 시 `console.error` 후 초기값 또는 기존 값 유지
+- 삭제: `removeLocalKey()` 사용 (삭제 후 이벤트 발행 — 삭제 경로도 동기화 반영)
 
 ### 5.3 상태 생성/수정/삭제 시나리오
 
@@ -340,4 +351,86 @@ export type Tab = 'home' | 'stats' | 'settings';
    번들 크기에 민감하므로 사전 협의 필요
 6. **시간/날짜 계산**: `timestamp`는 로컬 epoch ms 기준이며 `date-fns`의
    `startOfDay`/`endOfDay`로 하루 경계를 계산 — 시간대 관련 로직 추가 시 기존 방식 유지
+
+
+---
+
+## 7. PADO(파도) 플랫폼 브릿지 — 양방향 데이터 동기화
+
+### 7.1 개요
+
+본 앱(AquaFlow, **appId: `water_tracker`**)은 PADO 허브에 커스텀 모듈(iframe)로
+임베딩될 수 있습니다. 임베딩 환경에서는 `postMessage` 프로토콜을 통해 부모 창과
+사용자/설정/기록 데이터를 **양방향으로 동기화**하며, PADO 에이전트(Hermes)는
+`summary` 필드로 수분 섭취 현황을 분석합니다.
+
+- **Standalone(단독 브라우저)**: 브릿지는 아무 동작도 하지 않으며 기존 localStorage
+  입출력이 100% 유지됩니다. (`isEmbedded()`가 false면 훅이 즉시 종료)
+- **임베딩(PADO 허브)**: 아래 프로토콜로 자동 동기화됩니다.
+
+관련 파일:
+- `src/lib/pado.ts` — 프로토콜 상수, 페이로드 타입, `buildPadoPayload`/`buildSummary`
+- `src/lib/storage.ts` — localStorage 공용 유틸 + `aquaflow:storage-change` 이벤트
+- `src/hooks/usePadoBridge.ts` — 브릿지 훅 (App.tsx에서 마운트)
+- `public/pado-harness.html` — 임베딩 동작 검증용 하니스
+
+### 7.2 메시지 프로토콜 (postMessage, targetOrigin: `'*'`)
+
+| 방향 | type | payload | 설명 |
+|---|---|---|---|
+| 앱 → 부모 | `PADO_DATA_INIT_REQUEST` | 없음 | 마운트 시 초기 데이터 요청 |
+| 부모 → 앱 | `PADO_DATA_INIT_RESPONSE` | `PadoPayload \| null` | 초기 데이터 응답 (없으면 null) |
+| 앱 → 부모 | `PADO_DATA_SYNC` | `PadoPayload` | 데이터 변경 시 최신 스냅샷 전송 |
+
+모든 메시지는 `appId: 'water_tracker'`를 포함합니다.
+
+### 7.3 통합 동기화 페이로드 (`PadoPayload`)
+
+```ts
+interface PadoPayload {
+  appId: 'water_tracker';
+  updatedAt: string;                          // ISO 8601
+  users: User[];
+  settings: Record<string, UserSettings>;     // { [userId]: settings }
+  logs: Record<string, HydrationLog[]>;       // { [userId]: logs }
+  summary: {
+    todayIntake: number;                      // 활성 사용자의 오늘 총 섭취량 (ml)
+    target: number;                           // 일일 목표량 (ml)
+    achievementRate: number;                  // 달성률 (%)
+    todayLogCount: number;                    // 오늘 기록 횟수
+  };
+}
+```
+
+`summary`는 **활성 사용자**(현재 로그인 사용자) 기준으로 계산됩니다.
+`todayIntake` = 오늘 로그의 `hydrationAmount` 합계, `target` =
+`calculateTotalRecommended(weight, activityLevel)`, `achievementRate` = 최대 100%로 캡.
+
+### 7.4 동기화 흐름
+
+1. **앱 마운트 (임베딩)**: `isEmbedded()`가 참이면
+   `window.parent.postMessage({ type: 'PADO_DATA_INIT_REQUEST', appId }, '*')` 발신
+2. **INIT_RESPONSE 수신 시**:
+   - `payload`에 데이터 있음 → `users`는 React 상태 + localStorage에, `settings`/`logs`는
+     localStorage에 저장. `useLocalStorage`가 이벤트로 재조회하여 **화면 복원**.
+     복원 직후 동일 데이터 에코 발신은 방지(JSON 비교 가드)
+   - `payload`가 null/비어있고 **로컬에 기존 데이터 있음** → 최초 마이그레이션 목적으로
+     `PADO_DATA_SYNC` 1회 발신
+3. **데이터 변경 감지**: `useLocalStorage`/`writeLocalJson`/`removeLocalKey`가 발행하는
+   `aquaflow:storage-change` 이벤트(및 다른 탭의 `storage` 이벤트)를 구독 → 250ms 디바운스 후
+   `PADO_DATA_SYNC` 발신
+   - 수분 기록 추가/삭제, 사용자 생성/삭제/전환, 목표 설정 수정 시 즉시 동기화
+4. **언마운트 정리**: `message`/`storage`/커스텀 이벤트 리스너 제거, 디바운스 타이머 해제
+
+### 7.5 구현 규칙
+
+- **에코 방지**: `lastSentPayloadRef`에 마지막으로 보낸 페이로드의 JSON을 저장하고,
+  동일하면 전송을 건너뜁니다. 원격 복원 중에는 `applyingRemoteRef`로 추가 차단
+- **로그 규격**: 임베딩 시 `[PADO] PADO_DATA_INIT_REQUEST sent ...`,
+  `[PADO] PADO_DATA_SYNC sent (...)` 등으로 콘솔에 기록 (검증용)
+- **Standalone 규칙**: `isEmbedded()`가 false이면 리스너 등록·postMessage·로그 모두 미발생
+- **수신 검증**: `event.data`의 `type`/`appId`만 확인 (origin 검증 없음 — targetOrigin `'*'` 규격)
+- **테스트**: `npm run dev` 후 `/pado-harness.html`을 열어 INIT_REQUEST 수신 →
+  응답 버튼으로 복원/마이그레이션 → 앱 조작으로 SYNC 발신을 확인할 수 있습니다.
+  페이로드 구조 검증: `npx tsx scripts/verify-pado-payload.ts`
 

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PADO 브릿지 테스트 하니스 (appId: water_tracker)</title>
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: system-ui, -apple-system, sans-serif; display: flex; height: 100vh; }
+      #appFrame { flex: 1; border: none; background: #f8fafc; }
+      #side { width: 400px; max-width: 45vw; border-left: 1px solid #e2e8f0; background: #f8fafc; display: flex; flex-direction: column; gap: 8px; padding: 12px; overflow-y: auto; }
+      h1 { font-size: 15px; margin: 0; }
+      p, label { font-size: 12px; color: #475569; margin: 2px 0; }
+      button { padding: 8px 10px; border-radius: 10px; border: 1px solid #cbd5e1; background: #ffffff; cursor: pointer; font-size: 12px; font-weight: 600; color: #0f172a; }
+      button:hover { background: #f1f5f9; border-color: #94a3b8; }
+      #log { flex: 1; min-height: 160px; background: #0f172a; color: #a5f3fc; font-family: ui-monospace, Consolas, monospace; font-size: 11px; line-height: 1.5; padding: 10px; border-radius: 10px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+      .sep { border-top: 1px solid #e2e8f0; margin: 6px 0; }
+    </style>
+  </head>
+  <body>
+    <iframe id="appFrame" src="./index.html" title="AquaFlow (PADO 모듈 시뮬레이션)"></iframe>
+
+    <aside id="side">
+      <h1>🌊 PADO 부모 창 시뮬레이터</h1>
+      <p>앱(iframe)이 부모 창으로 전송하는 모든 postMessage를 수신하여 표시합니다.</p>
+      <p>appId: <code>water_tracker</code></p>
+
+      <div class="sep"></div>
+      <button id="btnRespondEmpty">1️⃣ INIT_RESPONSE 전송 — 빈 데이터 (payload: null)</button>
+      <button id="btnRespondData">2️⃣ INIT_RESPONSE 전송 — 샘플 데이터 (복원 테스트)</button>
+      <button id="btnRespondUpdated">3️⃣ INIT_RESPONSE 전송 — 샘플 데이터 + 섭취 로그 1건</button>
+      <p class="hint">
+        순서 예시: (1) iframe 앱이 자동으로 <code>PADO_DATA_INIT_REQUEST</code>를 보냄 →
+        (2) 위 버튼으로 응답 → (3) 앱에서 물 기록/설정 변경 시 <code>PADO_DATA_SYNC</code> 수신.
+      </p>
+
+      <div class="sep"></div>
+      <h1>수신 로그</h1>
+      <div id="log"></div>
+    </aside>
+
+    <script>
+      const iframe = document.getElementById('appFrame');
+      const logBox = document.getElementById('log');
+      const APP_ID = 'water_tracker';
+
+      function log(message, data) {
+        const time = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        let line = `[${time}] ${message}`;
+        if (data !== undefined) {
+          line += '\n  ' + JSON.stringify(data);
+        }
+        logBox.textContent += line + '\n';
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+
+      const sampleSettings = {
+        weight: 70,
+        activityLevel: 'moderate',
+        wakeUpTime: '07:00',
+        bedTime: '23:00',
+        drinkSettings: {
+          water: { amount: 200, hydrationRate: 100 },
+          coffee: { amount: 250, hydrationRate: 80 },
+          tea: { amount: 250, hydrationRate: 100 },
+          soda: { amount: 250, hydrationRate: 50 },
+          sports_drink: { amount: 300, hydrationRate: 100 },
+        },
+        notificationsEnabled: false,
+      };
+
+      function samplePayload(withLog) {
+        const logs = [];
+        if (withLog) {
+          logs.push({
+            id: 'harness_log_1',
+            timestamp: Date.now(),
+            drinkType: 'water',
+            rawAmount: 200,
+            hydrationAmount: 200,
+          });
+        }
+        return {
+          appId: APP_ID,
+          updatedAt: new Date().toISOString(),
+          users: [{ id: 'harness_user_1', name: '하니스사용자', character: '💧' }],
+          settings: { harness_user_1: sampleSettings },
+          logs: { harness_user_1: logs },
+          summary: {
+            todayIntake: withLog ? 200 : 0,
+            target: 2400,
+            achievementRate: withLog ? 8 : 0,
+            todayLogCount: withLog ? 1 : 0,
+          },
+        };
+      }
+
+      function postToApp(message) {
+        iframe.contentWindow.postMessage(message, '*');
+        const kind = message.payload ? '(payload 포함)' : '(payload: null)';
+        log('→ 전송: ' + message.type + ' ' + kind);
+      }
+
+      window.addEventListener('message', (event) => {
+        const data = event.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.appId !== APP_ID) return;
+        log('← 앱에서 수신: ' + data.type, data);
+      });
+
+      document.getElementById('btnRespondEmpty').onclick = () => {
+        postToApp({ type: 'PADO_DATA_INIT_RESPONSE', appId: APP_ID, payload: null });
+      };
+      document.getElementById('btnRespondData').onclick = () => {
+        postToApp({ type: 'PADO_DATA_INIT_RESPONSE', appId: APP_ID, payload: samplePayload(false) });
+      };
+      document.getElementById('btnRespondUpdated').onclick = () => {
+        postToApp({ type: 'PADO_DATA_INIT_RESPONSE', appId: APP_ID, payload: samplePayload(true) });
+      };
+    </script>
+  </body>
+</html>

@@ -9,6 +9,8 @@ import { SettingsTab } from './components/SettingsTab';
 import { Toast } from './components/Toast';
 import { UserSelection, renderCharacter } from './components/UserSelection';
 import { useLocalStorage } from './hooks/useLocalStorage';
+import { usePadoBridge } from './hooks/usePadoBridge';
+import { removeLocalKey } from './lib/storage';
 
 function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: () => void, onDeleteUser: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -123,6 +125,21 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useLocalStorage<User[]>('app_users', []);
 
+  // PADO(파도) 플랫폼 임베딩 시 양방향 데이터 동기화 브릿지
+  // - 단독 브라우저(Standalone)에서는 아무 작업도 하지 않음
+  // - users/settings/logs 변경 시 PADO_DATA_SYNC 자동 발신
+  usePadoBridge({
+    users,
+    setUsers,
+    currentUserId: currentUser?.id ?? null,
+    onRemoteRestore: (restoredUsers) => {
+      // 원격 복원 결과 현재 사용자가 사라졌다면 사용자 선택 화면으로 복귀
+      setCurrentUser((prev) =>
+        prev && !restoredUsers.some((u) => u.id === prev.id) ? null : prev
+      );
+    },
+  });
+
   if (!currentUser) {
     return (
       <div className="min-h-screen bg-slate-100 sm:py-8 font-sans">
@@ -139,8 +156,8 @@ export default function App() {
           onLogout={() => setCurrentUser(null)} 
           onDeleteUser={() => {
             setUsers(prev => prev.filter(u => u.id !== currentUser.id));
-            localStorage.removeItem(`hydration_settings_${currentUser.id}`);
-            localStorage.removeItem(`hydration_logs_${currentUser.id}`);
+            removeLocalKey(`hydration_settings_${currentUser.id}`);
+            removeLocalKey(`hydration_logs_${currentUser.id}`);
             setCurrentUser(null);
           }}
         />

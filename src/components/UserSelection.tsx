@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { User, UserSettings } from '../types';
 import { Plus, Trash2, ArrowRight } from 'lucide-react';
 import { defaultSettings } from '../store/HydrationContext';
+import { removeLocalKey } from '../lib/storage';
 
 const CHARACTER_IMAGES = [
   "https://lh3.googleusercontent.com/aida-public/AB6AXuCwOKcrSA7ecDZkfvmg6QQxY57eb0GYbeEMJAeQipCgKCBTYlKxy5NuRB_f1p79DYe1pEb6Uugcryxlh-zIKysPKW5-o2Q7DkOHWY6HqCMrzhZyC1AmGvJ8lrosSo2Yjqc2yjMHth4n_sEflJeXfbwns9kdGHRMxMhD_HMjG7Ic4y3uLsak77GojzMFa7eYwKFL5BNkGd_yWrdmOltr_0EexJZWXkkxlBgRI9kyvgr1dJAKxK0QBAZn11drHDH7ZzNcA_iUP09vxa5X",
@@ -80,8 +81,8 @@ export function UserSelection({ users, setUsers, onSelectUser }: Props) {
   const confirmDeleteUser = () => {
     if (userToDelete) {
       setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
-      localStorage.removeItem(`hydration_settings_${userToDelete.id}`);
-      localStorage.removeItem(`hydration_logs_${userToDelete.id}`);
+      removeLocalKey(`hydration_settings_${userToDelete.id}`);
+      removeLocalKey(`hydration_logs_${userToDelete.id}`);
       setUserToDelete(null);
     }
   };

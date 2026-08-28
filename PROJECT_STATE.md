@@ -20,9 +20,9 @@
 
 | 명령 | 결과 | 비고 |
 |---|---|---|
-| `npm run lint` (`tsc --noEmit`) | ✅ **통과** | 문서 작성 시점에 타입 오류 1건 수정 완료 (아래 4.1 참고) |
-| `npm run build` (`vite build`) | ✅ **통과** | 3562 모듈 변환, 약 12~15초 소요 |
-| 번들 크기 | ⚠️ 경고 | `index-*.js` 786.74 kB (gzip 241.92 kB) > 500 kB 경고 발생 |
+| `npm run lint` (`tsc --noEmit`) | ✅ **통과** | 타입 오류 0건 (기존 1건 수정 완료 — 아래 4.1 참고) |
+| `npm run build` (`vite build`) | ✅ **통과** | 3565 모듈 변환, 약 12초 소요 |
+| 번들 크기 | ⚠️ 경고 | `index-*.js` 791.12 kB (gzip 243.62 kB) > 500 kB 경고 발생 |
 
 ### 생성된 빌드 산출물 (dist/)
 
@@ -73,6 +73,20 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
 - [x] 모바일 우선 반응형 레이아웃 (스크롤 방향에 따른 헤더/네비 숨김)
 - [x] 브라우저 Notification API 권한 관리
 
+### 2.6 PADO(파도) 플랫폼 양방향 데이터 브릿지
+- [x] `usePadoBridge` 훅 구현 (appId: `water_tracker`, 임베딩 감지 `isEmbedded()`)
+- [x] 마운트 시 `PADO_DATA_INIT_REQUEST` 발신 → `PADO_DATA_INIT_RESPONSE` 수신 처리
+- [x] 초기 데이터 복원 (users/settings/logs → localStorage + React 상태 갱신 → 화면 복원)
+- [x] PADO 데이터 없음 + 로컬 데이터 존재 시 최초 마이그레이션(`PADO_DATA_SYNC`) 1회
+- [x] 데이터 변경 감지(기록 추가/삭제, 사용자 변경, 설정 수정) → 250ms 디바운스 자동 SYNC
+- [x] summary(오늘 섭취량/목표/달성률/기록 수) 계산 — PADO 에이전트(Hermes) 분석용
+- [x] 에코 방지(JSON 비교 가드), 언마운트 시 리스너/타이머 정리
+- [x] Standalone 모드 무영향 보장 (리스너·postMessage·로그 미발생)
+- [x] 임베딩 검증 하니스 (`public/pado-harness.html`), 페이로드 구조 검증 스크립트
+  (`scripts/verify-pado-payload.ts`)
+- [x] `useLocalStorage` 개선: `aquaflow:storage-change` 이벤트 발행/구독, 탭 간 동기화,
+      함수형 업데이트 최신값 기준 계산
+
 ---
 
 ## 3. 데이터 구조 요약
@@ -122,6 +136,28 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
 { "settings": { ... UserSettings }, "logs": [ ... HydrationLog ], "version": "1.0" }
 ```
 
+### 3.5 PADO 통합 동기화 페이로드 (appId: `water_tracker`)
+
+```json
+{
+  "appId": "water_tracker",
+  "updatedAt": "2026-08-28T00:00:00.000Z",
+  "users": [ { "id": "u1", "name": "홍길동", "character": "..." } ],
+  "settings": { "u1": { ... UserSettings } },
+  "logs": { "u1": [ { ... HydrationLog } ] },
+  "summary": {
+    "todayIntake": 600,
+    "target": 2100,
+    "achievementRate": 29,
+    "todayLogCount": 3
+  }
+}
+```
+
+- `summary`는 활성 사용자 기준 오늘 데이터 (상세는 AI_INSTRUCTIONS.md 7장 참고)
+- 동기화 대상 localStorage 키: `app_users` + `hydration_settings_{userId}` +
+  `hydration_logs_{userId}` (5.1과 동일 스키마)
+
 ---
 
 ## 4. 알려진 이슈 / 기술 부채
@@ -147,12 +183,15 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
   오프라인 캐싱·앱쉘 불가 (PWA 설치 시 오프라인 동작 없음)
 
 ### 4.3 상태/데이터 관리
-- **useLocalStorage 한계**:
-  - 브라우저 탭 간 실시간 동기화(`storage` 이벤트) 미구현
-  - 함수형 업데이트 시 내부에서 `prev`가 아닌 **클로저의 `storedValue`** 를 사용해
-    연속 업데이트 시 이전 상태 기준으로 계산될 수 있음
+- ~~**useLocalStorage 한계**~~ → **개선 완료 (PADO 브릿지 구현 시)**:
+  - ~~브라우저 탭 간 실시간 동기화(`storage` 이벤트) 미구현~~ →
+    `aquaflow:storage-change` 커스텀 이벤트 + 네이티브 `storage` 이벤트 구독으로 해결
+  - ~~함수형 업데이트 시 클로저의 이전 `storedValue` 사용~~ →
+    `storedValueRef` 도입으로 최신 값 기준 계산
 - **restoreData 검증 부족**: `settings`·`logs` 키 존재만 확인하고 스키마 심층 검증
   및 `version` 처리 없음 → 잘못된 형식 복원 시 런타임 오류 위험
+- **PADO 복원 검증 부족**: `PADO_DATA_INIT_RESPONSE` 수신 시 users 존재만 확인하고
+  개별 settings/logs의 스키마 검증은 하지 않음 (향후 타입 가드 도입 필요)
 - **스키마 버전 관리 부재**: localStorage 데이터에 마이그레이션/버전 필드가
   `settings`/`logs`에는 없음 (백업 파일에만 `version: "1.0"`)
 - **사용자 세션 비영속화**: `currentUser`는 React 메모리 상태 — 새로고침 시
@@ -168,7 +207,7 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
   UI 표기 `v1.0.0`과 불일치. 배포 전 정리 필요
 - **테스트 미설정**: 단위/통합 테스트 프레임워크 없음
 - **린트 도구 부재**: `npm run lint` = `tsc --noEmit` 뿐. ESLint/Prettier 없음
-- **번들 크기**: recharts를 포함한 메인 번들 786.74 kB — lazy loading/코드 스플리팅 필요
+- **번들 크기**: recharts를 포함한 메인 번들 791.12 kB — lazy loading/코드 스플리팅 필요
 - **코드 중복**: `SettingsTab`/`UserSelection`의 활동량 라디오 UI, 삭제 확인 모달,
   드링크 설정 폼이 유사 패턴으로 중복 구현
 - **다크 모드 미지원**: `index.css`에 변수만 정의, 컴포넌트는 라이트 모드 고정
@@ -181,9 +220,11 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
 ### 다음 마일스톤 (P0 — 안정화)
 - [ ] 통계 탭 **일/월 뷰** 실제 구현 (타임프레임 버튼을 데이터 필터에 연결)
 - [ ] 하드코딩된 "+12% 지난주 대비" 및 "습관 분석" 문구를 실제 데이터 기반으로 교체
-- [ ] `useLocalStorage` 개선: `storage` 이벤트 기반 탭 간 동기화, 함수형 업데이트에
-      `prev` 콜백 사용, 스키마 버전·마이그레이션 지원
-- [ ] `restoreData` 스키마 검증 강화 (백업 `version` 필드 검사, 필수 필드 타입 검증)
+- [x] ~~`useLocalStorage` 개선: 탭 간 동기화, 함수형 업데이트 최신값 기준~~ →
+      **완료** (PADO 브릿지 구현 시 `aquaflow:storage-change` 이벤트 + `storedValueRef` 도입)
+- [ ] `useLocalStorage` 스키마 버전·마이그레이션 지원
+- [ ] `restoreData`/PADO 복원 시 스키마 검증 강화 (백업 `version` 필드 검사,
+      페이로드 타입 가드)
 - [ ] HomeTab 이온음료 버튼의 dead condition 제거 (`drinkOptions`로 통합)
 - [ ] 번들 최적화: recharts/차트 lazy import 또는 `manualChunks` 분리
 
@@ -192,10 +233,12 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
 - [ ] 수분 부족 알림 스케줄링 (기상~취침 중 주기적 체크, 매 기록 시에만 체크하는
       현재 로직 대체)
 - [ ] 다크 모드 실제 지원 (컴포넌트 색상을 CSS 변수 기반으로 전환)
-- [ ] 테스트 프레임워크 도입 (Vitest + React Testing Library, 권장량 계산 로직 우선)
+- [ ] 테스트 프레임워크 도입 (Vitest + React Testing Library, 권장량 계산/PADO 페이로드 우선)
 - [ ] ESLint + Prettier 설정 및 기존 코드 정리
 - [ ] 에러 경계(ErrorBoundary) 및 전역 오류 처리 도입
 - [ ] PWA 강화: 오프라인 캐싱 전략, install prompt, 아이콘 PNG 세트 추가
+- [ ] PADO 연동 고도화: 브릿지 재시도/재연결 처리, 요약(summary)에 주간 통계 추가,
+      수신 페이로드 타입 가드(스키마 검증) 도입
 
 ### P2 — 후보/아이디어
 - [ ] 음료 종류·사용자 설정 내보내기/가져오기의 세밀한 병합 정책
