@@ -1,16 +1,16 @@
 /**
- * PADO(파도) 플랫폼 양방향 데이터 브릿지 훅
+ * PADO(파도) 플랫폼 양방향 데이터 브릿지 훅 (단일 사용자 스키마)
  *
  * - iframe 임베딩 환경(PADO 허브)에서만 동작하고, 단독 브라우저(Standalone)에서는
  *   아무 작업도 하지 않습니다.
  * - 마운트 시 부모 창에 `PADO_DATA_INIT_REQUEST`를 발신하고,
- *   `PADO_DATA_INIT_RESPONSE` 수신 시 데이터 복원 또는 최초 마이그레이션을 수행합니다.
- * - users/settings/logs 등 localStorage 변경이 감지되면 `PADO_DATA_SYNC`를
- *   디바운스하여 부모 창에 전송합니다.
+ *   `PADO_DATA_INIT_RESPONSE` 수신 시 단일 settings/logs를 즉시 복원합니다.
+ * - 수분 기록 추가/삭제·설정 수정 등 localStorage 변경이 감지되면 `PADO_DATA_SYNC`를
+ *   250ms 디바운스하여 부모 창에 전송합니다.
  */
 import { useCallback, useEffect, useRef } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { User } from '../types';
+import { UserSettings, HydrationLog } from '../types';
 import {
   PADO_APP_ID,
   PADO_MESSAGE_INIT_REQUEST,
@@ -18,28 +18,25 @@ import {
   PADO_MESSAGE_SYNC,
   PadoBridgeMessage,
   PadoPayload,
-  APP_USERS_KEY,
   buildPadoPayload,
   hasLocalData,
   isEmbedded,
-  userLogsKey,
-  userSettingsKey,
+  restoreFromPadoPayload,
 } from '../lib/pado';
-import { LOCAL_STORAGE_UPDATE_EVENT, writeLocalJson } from '../lib/storage';
+import { LOCAL_STORAGE_UPDATE_EVENT } from '../lib/storage';
 
 const SYNC_DEBOUNCE_MS = 250;
 
 interface UsePadoBridgeOptions {
-  /** 현재 사용자 목록 (App 상태) */
-  users: User[];
-  setUsers: Dispatch<SetStateAction<User[]>>;
-  /** 활성 사용자 ID — summary 계산 기준. null이면 사용자 선택 화면. */
-  currentUserId: string | null;
-  /** 부모에서 복원된 사용자 목록에 현재 사용자가 없을 때 로그아웃 처리 등에 사용 */
-  onRemoteRestore?: (users: User[]) => void;
+  /** 단일 사용자 설정 상태 (PADO 페이로드의 settings/summary 계산 기준) */
+  settings: UserSettings;
+  setSettings: Dispatch<SetStateAction<UserSettings>>;
+  /** 단일 사용자 수분 기록 배열 */
+  logs: HydrationLog[];
+  setLogs: Dispatch<SetStateAction<HydrationLog[]>>;
 }
 
-export function usePadoBridge({ users, setUsers, currentUserId, onRemoteRestore }: UsePadoBridgeOptions) {
+export function usePadoBridge({ settings, setSettings, logs, setLogs }: UsePadoBridgeOptions) {
   const embeddedRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const migrationSentRef = useRef(false);
@@ -47,26 +44,27 @@ export function usePadoBridge({ users, setUsers, currentUserId, onRemoteRestore 
   const debounceTimerRef = useRef<number | null>(null);
 
   // 최신 값 참조 (렌더링 시 갱신) — 콜백 내 클로저 스테일 방지
-  const usersRef = useRef(users);
-  const setUsersRef = useRef(setUsers);
-  const currentUserIdRef = useRef(currentUserId);
-  const onRemoteRestoreRef = useRef(onRemoteRestore);
-  usersRef.current = users;
-  setUsersRef.current = setUsers;
-  currentUserIdRef.current = currentUserId;
-  onRemoteRestoreRef.current = onRemoteRestore;
+  const settingsRef = useRef(settings);
+  const setSettingsRef = useRef(setSettings);
+  const logsRef = useRef(logs);
+  const setLogsRef = useRef(setLogs);
+  settingsRef.current = settings;
+  setSettingsRef.current = setSettings;
+  logsRef.current = logs;
+  setLogsRef.current = setLogs;
+
 
   /** 현재 상태를 페이로드로 조립해 부모 창에 PADO_DATA_SYNC 발신 */
   const sendSync = useCallback(() => {
     if (!embeddedRef.current) return;
-    const payload = buildPadoPayload(usersRef.current, currentUserIdRef.current);
+    const payload = buildPadoPayload(settingsRef.current, logsRef.current);
     const serialized = JSON.stringify(payload);
     if (serialized === lastSentPayloadRef.current) return; // 중복(에코) 방지
     lastSentPayloadRef.current = serialized;
 
     window.parent.postMessage({ type: PADO_MESSAGE_SYNC, appId: PADO_APP_ID, payload }, '*');
     console.log(
-      `[PADO] PADO_DATA_SYNC sent (users=${payload.users.length}, todayIntake=${payload.summary.todayIntake}ml, ` +
+      `[PADO] PADO_DATA_SYNC sent (logs=${payload.logs.length}, todayIntake=${payload.summary.todayIntake}ml, ` +
         `target=${payload.summary.target}ml, achievementRate=${payload.summary.achievementRate}%, todayLogCount=${payload.summary.todayLogCount})`
     );
   }, []);
@@ -90,35 +88,28 @@ export function usePadoBridge({ users, setUsers, currentUserId, onRemoteRestore 
 
     /**
      * PADO_DATA_INIT_RESPONSE 처리:
-     * - payload에 데이터가 있으면 localStorage에 저장 + React 상태 갱신(화면 복원)
+     * - payload에 데이터가 있으면 단일 settings/logs로 즉시 복원 (localStorage + React 상태)
      * - payload가 비어있고 로컬에 기존 데이터가 있으면 최초 마이그레이션 SYNC 1회
      */
     const applyRemotePayload = (payload: PadoPayload | null | undefined) => {
-      const hasRemoteData =
-        !!payload && Array.isArray(payload.users) && payload.users.length > 0;
+      const hasRemoteData = !!payload && (!!payload.settings || Array.isArray(payload.logs));
 
       if (hasRemoteData) {
         applyingRemoteRef.current = true;
         try {
-          // 1) users → React 상태 + localStorage 저장
-          setUsersRef.current(payload.users);
-          // 2) settings / logs → localStorage 저장 (useLocalStorage가 이벤트로 재조회)
-          for (const [userId, settings] of Object.entries(payload.settings || {})) {
-            writeLocalJson(userSettingsKey(userId), settings);
-          }
-          for (const [userId, logs] of Object.entries(payload.logs || {})) {
-            writeLocalJson(userLogsKey(userId), logs);
-          }
-          onRemoteRestoreRef.current?.(payload.users);
-        } finally {
+          const restored = restoreFromPadoPayload(payload, settingsRef.current);
+          // setSettings/setLogs(useLocalStorage)가 localStorage + React 상태를 동시에 갱신
+          setSettingsRef.current(restored.settings);
+          setLogsRef.current(restored.logs);
           // 방금 복원한 스냅샷을 "이미 동기화됨"으로 기록 → 에코 발신 방지
           lastSentPayloadRef.current = JSON.stringify(
-            buildPadoPayload(payload.users, currentUserIdRef.current)
+            buildPadoPayload(restored.settings, restored.logs)
           );
+        } finally {
           applyingRemoteRef.current = false;
         }
         console.log(
-          `[PADO] PADO_DATA_INIT_RESPONSE applied — restored ${payload.users.length} user(s) from parent`
+          `[PADO] PADO_DATA_INIT_RESPONSE applied — single-user settings/logs restored (logs=${Array.isArray(payload.logs) ? payload.logs.length : 0})`
         );
       } else if (hasLocalData()) {
         // PADO에 데이터가 없고 로컬에 기존 데이터가 있는 경우 → 최초 마이그레이션
@@ -147,10 +138,7 @@ export function usePadoBridge({ users, setUsers, currentUserId, onRemoteRestore 
 
     // 다른 탭에서의 변경도 감지 (PADO 임베딩 탭의 동기화 보강)
     const handleStorageEvent = (event: StorageEvent) => {
-      if (
-        event.key === APP_USERS_KEY ||
-        (event.key != null && event.key.startsWith('hydration_'))
-      ) {
+      if (event.key != null && event.key.startsWith('hydration_')) {
         scheduleSync();
       }
     };

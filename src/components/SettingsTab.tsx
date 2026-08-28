@@ -1,12 +1,11 @@
 import React, { useRef } from 'react';
 import { useHydration } from '../store/HydrationContext';
 import { DrinkType, DrinkSetting } from '../types';
-import { Download, Upload, LogOut, Trash2 } from 'lucide-react';
+import { Download, Upload } from 'lucide-react';
 
-export function SettingsTab({ onLogout, onDeleteUser }: { onLogout: () => void, onDeleteUser: () => void }) {
+export function SettingsTab() {
   const { settings, updateSettings, totalRecommended, backupData, restoreData } = useHydration();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
   const handleDrinkSettingChange = (type: DrinkType, field: keyof DrinkSetting, value: number) => {
     updateSettings({
@@ -164,6 +163,18 @@ export function SettingsTab({ onLogout, onDeleteUser }: { onLogout: () => void, 
           </label>
         </div>
         <p className="text-[10px] text-slate-500 mt-3 font-medium">현재 권장량 대비 10% 이상 부족할 때 알림을 받습니다.</p>
+        <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-500">알림 간격 (분)</span>
+          <input
+            type="number"
+            min="10"
+            max="240"
+            step="10"
+            value={settings.reminderInterval}
+            onChange={(e) => updateSettings({ reminderInterval: Number(e.target.value) || 60 })}
+            className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:bg-white transition-colors"
+          />
+        </div>
       </div>
 
       <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4">
@@ -192,51 +203,6 @@ export function SettingsTab({ onLogout, onDeleteUser }: { onLogout: () => void, 
            />
         </div>
       </div>
-      <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm space-y-4">
-        <h3 className="text-sm font-bold text-slate-800">계정 관리</h3>
-        <div className="flex gap-3">
-           <button 
-             onClick={onLogout}
-             className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-slate-100 hover:border-slate-200 transition-colors"
-           >
-             <LogOut className="w-5 h-5 text-slate-600" />
-             <span className="text-xs font-bold text-slate-700">사용자 전환</span>
-           </button>
-           <button 
-             onClick={() => setShowDeleteConfirm(true)}
-             className="flex-1 flex flex-col items-center justify-center gap-2 p-4 bg-[#fff0f0] rounded-2xl border border-[#ffe0e0] hover:bg-[#ffe5e5] hover:border-[#ffcccc] transition-colors"
-           >
-             <Trash2 className="w-5 h-5 text-red-500" />
-             <span className="text-xs font-bold text-red-600">계정 삭제</span>
-           </button>
-        </div>
-      </div>
-
-      {showDeleteConfirm && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-          <div className="bg-white rounded-3xl p-6 shadow-2xl w-full max-w-xs animate-in fade-in zoom-in-95 duration-200">
-            <div className="w-12 h-12 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-4 mx-auto">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="text-center font-bold text-slate-800 text-lg mb-2">정말 삭제하시겠습니까?</h3>
-            <p className="text-center text-sm text-slate-500 mb-6 font-medium">모든 데이터가 영구적으로 삭제되며 복구할 수 없습니다.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold transition-all text-sm">
-                취소
-              </button>
-              <button 
-                onClick={() => {
-                  setShowDeleteConfirm(false);
-                  onDeleteUser();
-                }} 
-                className="flex-[1.5] py-3 bg-red-500 hover:bg-red-600 active:scale-95 text-white rounded-xl font-bold transition-all shadow-md shadow-red-500/20 text-sm"
-              >
-                삭제하기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

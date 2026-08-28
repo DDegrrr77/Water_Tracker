@@ -54,38 +54,21 @@
         logBox.scrollTop = logBox.scrollHeight;
       }
 
-      const sampleSettings = {
-        weight: 70,
-        activityLevel: 'moderate',
-        wakeUpTime: '07:00',
-        bedTime: '23:00',
-        drinkSettings: {
-          water: { amount: 200, hydrationRate: 100 },
-          coffee: { amount: 250, hydrationRate: 80 },
-          tea: { amount: 250, hydrationRate: 100 },
-          soda: { amount: 250, hydrationRate: 50 },
-          sports_drink: { amount: 300, hydrationRate: 100 },
-        },
-        notificationsEnabled: false,
-      };
-
       function samplePayload(withLog) {
         const logs = [];
         if (withLog) {
           logs.push({
             id: 'harness_log_1',
-            timestamp: Date.now(),
-            drinkType: 'water',
-            rawAmount: 200,
-            hydrationAmount: 200,
+            timestamp: new Date().toISOString(),
+            amount: 200,
+            type: 'water',
           });
         }
         return {
           appId: APP_ID,
           updatedAt: new Date().toISOString(),
-          users: [{ id: 'harness_user_1', name: '하니스사용자', character: '💧' }],
-          settings: { harness_user_1: sampleSettings },
-          logs: { harness_user_1: logs },
+          settings: { target: 2400, cupSize: 200, reminderInterval: 60 },
+          logs,
           summary: {
             todayIntake: withLog ? 200 : 0,
             target: 2400,

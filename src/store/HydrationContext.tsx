@@ -4,6 +4,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 import { sendBrowserNotification, requestNotificationPermission } from '../lib/notifications';
 import { calculateCurrentRecommended, calculateTotalRecommended } from '../lib/utils';
 import { startOfDay, endOfDay, format } from 'date-fns';
+import { SETTINGS_KEY, LOGS_KEY, migrateLegacyData } from '../lib/storage';
 
 export const defaultSettings: UserSettings = {
   weight: 60,
@@ -18,12 +19,18 @@ export const defaultSettings: UserSettings = {
     sports_drink: { amount: 300, hydrationRate: 100 },
   },
   notificationsEnabled: false,
+  reminderInterval: 60,
 };
+
+type SetSettingsFn = (value: UserSettings | ((prev: UserSettings) => UserSettings)) => void;
+type SetLogsFn = (value: HydrationLog[] | ((prev: HydrationLog[]) => HydrationLog[])) => void;
 
 interface HydrationContextProps {
   settings: UserSettings;
+  setSettings: SetSettingsFn;
   updateSettings: (newSettings: Partial<UserSettings>) => void;
   logs: HydrationLog[];
+  setLogs: SetLogsFn;
   addLog: (drinkType: DrinkType) => void;
   undoLastLog: () => void;
   todayLogs: HydrationLog[];
@@ -38,11 +45,16 @@ interface HydrationContextProps {
 
 const HydrationContext = createContext<HydrationContextProps | undefined>(undefined);
 
-export function HydrationProvider({ userId, children }: { userId: string, children: ReactNode }) {
-  const [settings, setSettings] = useLocalStorage<UserSettings>(`hydration_settings_${userId}`, defaultSettings);
-  const [logs, setLogs] = useLocalStorage<HydrationLog[]>(`hydration_logs_${userId}`, []);
+export function HydrationProvider({ children }: { children: ReactNode }) {
+  // 앱 마운트 시 1회: v0.1.x 멀티 유저 키 → v0.2.0 단일 사용자 키 자동 마이그레이션.
+  // 멱등(idempotent)이므로 반복 렌더링에도 안전하며, 반드시 상태 초기화 이전에 실행한다.
+  migrateLegacyData(defaultSettings);
+
+  const [settings, setSettings] = useLocalStorage<UserSettings>(SETTINGS_KEY, defaultSettings);
+  const [logs, setLogs] = useLocalStorage<HydrationLog[]>(LOGS_KEY, []);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentRecommended, setCurrentRecommended] = useState<number>(0);
+
 
   const totalRecommended = calculateTotalRecommended(settings.weight, settings.activityLevel);
 
@@ -111,13 +123,13 @@ export function HydrationProvider({ userId, children }: { userId: string, childr
   };
 
   const backupData = () => {
-    const data = { settings, logs, version: '1.0' };
+    const data = { settings, logs, version: '2.0' };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     const dateStr = format(new Date(), 'yyyyMMdd_HHmmss');
-    a.download = `water_${userId}_${dateStr}.json`;
+    a.download = `water_${dateStr}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -126,7 +138,9 @@ export function HydrationProvider({ userId, children }: { userId: string, childr
     try {
       const data = JSON.parse(jsonData);
       if (data.settings && data.logs) {
-        setSettings(data.settings);
+        // 신규 필드(reminderInterval 등) 누락에 대비해 기본값과 병합
+        const restoredSettings: UserSettings = { ...defaultSettings, ...data.settings };
+        setSettings(restoredSettings);
         setLogs(data.logs);
         return true;
       }
@@ -139,8 +153,10 @@ export function HydrationProvider({ userId, children }: { userId: string, childr
   return (
     <HydrationContext.Provider value={{
       settings,
+      setSettings,
       updateSettings,
       logs,
+      setLogs,
       addLog,
       undoLastLog,
       todayLogs,

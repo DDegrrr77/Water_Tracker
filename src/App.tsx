@@ -1,21 +1,24 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { HydrationProvider } from './store/HydrationContext';
-import { Tab, User } from './types';
-import { Home, BarChart2, Settings } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { HydrationProvider, useHydration } from './store/HydrationContext';
+import { Tab } from './types';
+import { Settings } from 'lucide-react';
 import { cn } from './lib/utils';
 import { HomeTab } from './components/HomeTab';
 import { StatsTab } from './components/StatsTab';
 import { SettingsTab } from './components/SettingsTab';
 import { Toast } from './components/Toast';
-import { UserSelection, renderCharacter } from './components/UserSelection';
-import { useLocalStorage } from './hooks/useLocalStorage';
 import { usePadoBridge } from './hooks/usePadoBridge';
-import { removeLocalKey } from './lib/storage';
 
-function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: () => void, onDeleteUser: () => void }) {
+function AppContent() {
+  const { settings, setSettings, logs, setLogs } = useHydration();
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [scrollDirection, setScrollDirection] = useState<'up' | 'down' | 'none'>('none');
   const lastScrollY = useRef(0);
+
+  // PADO(파도) 플랫폼 임베딩 시 단일 사용자 settings/logs 양방향 동기화 브릿지
+  // - 단독 브라우저(Standalone)에서는 아무 작업도 하지 않음
+  // - 수분 기록 추가/삭제, 설정 변경 시 PADO_DATA_SYNC 자동 발신 (250ms 디바운스)
+  usePadoBridge({ settings, setSettings, logs, setLogs });
 
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
     const currentScrollY = e.currentTarget.scrollTop;
@@ -51,20 +54,12 @@ function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: ()
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 6c.6 0 1.2-.2 1.7-.6C4.8 4.6 5.9 4 7 4s2.2.6 3.3 1.4C11.4 6 12.6 6.5 14 6.5s2.6-.5 3.7-1.1C18.8 4.6 19.9 4 21 4v2c-1.1 0-2.2.6-3.3 1.4C16.6 8 15.4 8.5 14 8.5s-2.6-.5-3.7-1.1C9.2 6.6 8.1 6 7 6s-2.2.6-3.3 1.4C2.6 8 1.4 8.5 0 8.5V6.5h2z"/><path d="M2 12c.6 0 1.2-.2 1.7-.6C4.8 10.6 5.9 10 7 10s2.2.6 3.3 1.4c1.1.6 2.3 1.1 3.7 1.1s2.6-.5 3.7-1.1c1.1-.8 2.2-1.4 3.3-1.4v2c-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1s-2.6-.5-3.7-1.1c-1.1-.8-2.2-1.4-3.3-1.4-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1v-2h2z"/><path d="M2 18c.6 0 1.2-.2 1.7-.6.1-.1.2-.1.3-.2C5.1 16.5 6 16 7 16s1.9.5 3 1.2c.1.1.2.1.3.2 1.1.8 2.3 1.1 3.7 1.1s2.6-.5 3.7-1.1c.1-.1.2-.1.3-.2 1.1-.7 2-1.2 3-1.2v2c-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1s-2.6-.5-3.7-1.1c-1.1-.8-2.2-1.4-3.3-1.4-1.1 0-2.2.6-3.3 1.4-1.1.6-2.3 1.1-3.7 1.1v-2h2z"/></svg>
           <span className="font-extrabold tracking-tight text-xl">AquaFlow</span>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={onLogout} className="text-[10px] font-bold text-slate-500 bg-white/60 px-3 py-1.5 rounded-full hover:bg-white active:scale-95 transition-all shadow-sm">
-            계정
-          </button>
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-lg shadow-sm overflow-hidden border border-white/50">
-            {renderCharacter(user.character, "w-full h-full object-cover")}
-          </div>
-        </div>
       </header>
 
       <main onScroll={handleScroll} className="flex-1 overflow-y-auto pt-16 pb-[88px] no-scrollbar">
         {activeTab === 'home' && <HomeTab />}
         {activeTab === 'stats' && <StatsTab />}
-        {activeTab === 'settings' && <SettingsTab onLogout={onLogout} onDeleteUser={onDeleteUser} />}
+        {activeTab === 'settings' && <SettingsTab />}
       </main>
 
       <nav className={cn(
@@ -122,48 +117,12 @@ function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode, la
 }
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [users, setUsers] = useLocalStorage<User[]>('app_users', []);
-
-  // PADO(파도) 플랫폼 임베딩 시 양방향 데이터 동기화 브릿지
-  // - 단독 브라우저(Standalone)에서는 아무 작업도 하지 않음
-  // - users/settings/logs 변경 시 PADO_DATA_SYNC 자동 발신
-  usePadoBridge({
-    users,
-    setUsers,
-    currentUserId: currentUser?.id ?? null,
-    onRemoteRestore: (restoredUsers) => {
-      // 원격 복원 결과 현재 사용자가 사라졌다면 사용자 선택 화면으로 복귀
-      setCurrentUser((prev) =>
-        prev && !restoredUsers.some((u) => u.id === prev.id) ? null : prev
-      );
-    },
-  });
-
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
-        <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800">
-          <UserSelection users={users} setUsers={setUsers} onSelectUser={setCurrentUser} />
-        </div>
-      </div>
-    );
-  }
-
+  // v0.2.0: 사용자 선택 화면 없이 곧바로 메인 대시보드(오늘의 수분 기록 탭)로 진입
   return (
-    <HydrationProvider userId={currentUser.id}>
+    <HydrationProvider>
       <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
         <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800">
-          <AppContent 
-            user={currentUser} 
-            onLogout={() => setCurrentUser(null)} 
-            onDeleteUser={() => {
-              setUsers(prev => prev.filter(u => u.id !== currentUser.id));
-              removeLocalKey(`hydration_settings_${currentUser.id}`);
-              removeLocalKey(`hydration_logs_${currentUser.id}`);
-              setCurrentUser(null);
-            }}
-          />
+          <AppContent />
         </div>
       </div>
     </HydrationProvider>
