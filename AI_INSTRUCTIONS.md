@@ -35,6 +35,8 @@
 - **SPA (단일 페이지 앱)**: 라우터 없이 `App.tsx` 내부의 `activeTab` 상태로 화면 전환
 - **멀티 사용자**: 브라우저 `localStorage` 기반 로컬 프로필 (백엔드/DB 없음)
 - **PWA 기반 구조**: `manifest.json` + `sw.js`(패스스루) + SVG 아이콘으로 설치 가능 형태
+- **반응형 앱 프레임(v0.1.0)**: 최상위가 중앙 정렬 모바일 카드 뷰(`max-w-md mx-auto`) +
+  중립 배경(`bg-slate-50`) 구조. 넓은 화면·PADO iframe에서 가로 확장 없이 모바일 규격 유지
 
 ---
 
@@ -293,8 +295,12 @@ export type Tab = 'home' | 'stats' | 'settings';
 ### 6.2 UI/UX 디자인 가이드
 
 - **한국어 UI**: 모든 표시 텍스트는 한국어 (`label`, placeholder, toast, alert 모두)
-- **모바일 퍼스트 레이아웃**:
-  - 화면 컨테이너: `flex flex-col h-[100dvh] max-w-md mx-auto`
+- **반응형 앱 프레임 (v0.1.0, 필수)**: 넓은 화면·PADO iframe에서 모바일 규격을 유지한다.
+  - 최상위 래퍼(배경): `min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans`
+  - 앱 프레임(카드): `max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800`
+  - 이 구조는 App.tsx의 사용자 선택/앱 화면 **양쪽 분기에 동일 적용** (새 화면 추가 시 동일 패턴 유지)
+- **모바일 셸 (프레임 내부)**: `flex flex-col h-[100dvh] relative overflow-hidden`
+  - iframe 높이에 맞춰 셸을 고정하고 내부에서만 스크롤 → 하단 네비게이션 잘림 방지
   - 스크롤 영역: `<main className="flex-1 overflow-y-auto ...">`
   - 하단 탭 바/헤더는 `absolute` 포지션 + `backdrop-blur`
   - `pb-safe`(iOS safe area), `no-scrollbar` 커스텀 클래스 사용
@@ -302,7 +308,7 @@ export type Tab = 'home' | 'stats' | 'settings';
   - `index.css` `@theme`의 `--color-primary`(#0072CE) 계열
   - 포인트 컬러: `#0058bf`(텍스트/포커스), `#006fef`(강조), `#71d5fe`(포인트 배지),
     `#006783`(오늘/포인트)
-  - 배경: `bg-gradient-to-br from-[#f7fafe] to-[#e6efff]` (홈), 카드 `bg-white rounded-3xl shadow-sm`
+  - 앱 프레임/셸은 `bg-white dark:bg-zinc-900`, 내부 카드 `bg-white rounded-3xl shadow-sm`
   - 절대 헥스(arbitrary value) 인라인 사용이 일반적 → `index.css`의 `@theme` 확장보다
     임시 색상은 inline으로 사용하는 관례
 - **다크 모드**: `index.css`에 `prefers-color-scheme: dark`용 CSS 변수만 존재.

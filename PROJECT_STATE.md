@@ -11,25 +11,26 @@
 | 항목 | 값 |
 |---|---|
 | 패키지명 | `react-example` (package.json 기준, AI Studio 스캐폴딩 기본값) |
-| 버전 | `0.0.0` (package.json 기준) — ※ UI 하단 표기는 `v1.0.0` |
+| 버전 | `0.1.0` (package.json 기준) — UI 하단 표기 `v0.1.0` (일치) |
 | 런타임 | Node.js v24.19.0, React 19.0.1 |
 | 앱 이름 | AquaFlow / 수분 섭취 트래커 |
 | AI Studio 앱 URL | https://ai.studio/apps/143530bd-d5d7-4e3d-9193-ace782e3931f (README.md 참고) |
 
-### 빌드 검증 (2026-08-28 실행)
+### 빌드 검증 (2026-08-28 실행, v0.1.0)
 
 | 명령 | 결과 | 비고 |
 |---|---|---|
-| `npm run lint` (`tsc --noEmit`) | ✅ **통과** | 타입 오류 0건 (기존 1건 수정 완료 — 아래 4.1 참고) |
-| `npm run build` (`vite build`) | ✅ **통과** | 3565 모듈 변환, 약 12초 소요 |
-| 번들 크기 | ⚠️ 경고 | `index-*.js` 791.12 kB (gzip 243.62 kB) > 500 kB 경고 발생 |
+| `npm run lint` (`tsc --noEmit`) | ✅ **통과** | 타입 오류 0건 |
+| `npm run build` (`vite build`) | ✅ **통과** | 3565 모듈 변환, 약 12~17초 소요 |
+| 번들 크기 | ⚠️ 경고 | `index-*.js` 791.34 kB (gzip 243.64 kB) > 500 kB 경고 발생 |
+| PADO 페이로드 검증 | ✅ 통과 | `scripts/verify-pado-payload.ts` — 표준 규격 일치 |
 
 ### 생성된 빌드 산출물 (dist/)
 
 ```
 dist/index.html                  1.05 kB
-dist/assets/index-*.css         44.23 kB  (gzip 8.15 kB)
-dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
+dist/assets/index-*.css         45.06 kB  (gzip 8.28 kB)
+dist/assets/index-*.js         791.34 kB  (gzip 243.64 kB)
 ```
 
 ---
@@ -86,6 +87,15 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
   (`scripts/verify-pado-payload.ts`)
 - [x] `useLocalStorage` 개선: `aquaflow:storage-change` 이벤트 발행/구독, 탭 간 동기화,
       함수형 업데이트 최신값 기준 계산
+
+### 2.7 화면 비율 및 레이아웃 최적화 (iframe / 데스크톱 대응)
+- [x] 최상위 레이아웃을 반응형 앱 프레임 구조로 개선 (App.tsx 양쪽 분기 공통 적용):
+  - 앱 프레임: `max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800`
+  - 외부 배경: `min-h-screen bg-slate-50 dark:bg-zinc-950` — 넓은 화면/iframe의 빈 공간을 중립 색으로 채움
+- [x] 모바일 셸(`h-[100dvh] flex flex-col`) 유지 — iframe 높이에 맞춰 내부 스크롤·하단 네비게이션
+  잘림 방지 (헤더/네비 absolute + main `flex-1 overflow-y-auto` 구조 유지)
+- [x] UserSelection 화면 셸에도 동일 프레임 적용 (중앙 카드 정렬)
+- [x] UI 하단 버전 표기 `v1.0.0` → `v0.1.0` 통일
 
 ---
 
@@ -203,11 +213,11 @@ dist/assets/index-*.js         786.74 kB  (gzip 241.92 kB)
 - **미사용 의존성**: `@google/genai`, `dotenv`, `express`는 `src/`에서 사용되지 않는
   AI Studio 스캐폴딩 잔재 (package.json의 `clean` 스크립트는 존재하지 않는
   `server.js`를 삭제 대상으로 참조)
-- **패키지명/버전 미정리**: `name: "react-example"`, `version: "0.0.0"`,
-  UI 표기 `v1.0.0`과 불일치. 배포 전 정리 필요
+- **패키지명 미정리**: `name: "react-example"` (AI Studio 스캐폴딩 기본값) — 버전은
+  `0.1.0`으로 갱신 완료(UI 표기 `v0.1.0` 일치). 앱명 반영(`aquaflow` 등)은 배포 전 정리 필요
 - **테스트 미설정**: 단위/통합 테스트 프레임워크 없음
 - **린트 도구 부재**: `npm run lint` = `tsc --noEmit` 뿐. ESLint/Prettier 없음
-- **번들 크기**: recharts를 포함한 메인 번들 791.12 kB — lazy loading/코드 스플리팅 필요
+- **번들 크기**: recharts를 포함한 메인 번들 791.34 kB — lazy loading/코드 스플리팅 필요
 - **코드 중복**: `SettingsTab`/`UserSelection`의 활동량 라디오 UI, 삭제 확인 모달,
   드링크 설정 폼이 유사 패턴으로 중복 구현
 - **다크 모드 미지원**: `index.css`에 변수만 정의, 컴포넌트는 라이트 모드 고정

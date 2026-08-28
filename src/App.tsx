@@ -40,7 +40,7 @@ function AppContent({ user, onLogout, onDeleteUser }: { user: User, onLogout: ()
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] max-w-md mx-auto bg-gradient-to-br from-[#f7fafe] to-[#e6efff] text-slate-900 shadow-xl relative z-0 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-white dark:bg-zinc-900 text-slate-900 relative z-0 overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[120%] h-[120%] bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-[#bde9ff]/20 via-transparent to-transparent blur-3xl pointer-events-none -z-10"></div>
       
       <header className={cn(
@@ -142,25 +142,29 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-slate-100 sm:py-8 font-sans">
-        <UserSelection users={users} setUsers={setUsers} onSelectUser={setCurrentUser} />
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
+        <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800">
+          <UserSelection users={users} setUsers={setUsers} onSelectUser={setCurrentUser} />
+        </div>
       </div>
     );
   }
 
   return (
     <HydrationProvider userId={currentUser.id}>
-      <div className="min-h-screen bg-slate-100 sm:py-8 font-sans">
-        <AppContent 
-          user={currentUser} 
-          onLogout={() => setCurrentUser(null)} 
-          onDeleteUser={() => {
-            setUsers(prev => prev.filter(u => u.id !== currentUser.id));
-            removeLocalKey(`hydration_settings_${currentUser.id}`);
-            removeLocalKey(`hydration_logs_${currentUser.id}`);
-            setCurrentUser(null);
-          }}
-        />
+      <div className="min-h-screen bg-slate-50 dark:bg-zinc-950 font-sans">
+        <div className="max-w-md mx-auto min-h-screen bg-white dark:bg-zinc-900 shadow-lg border-x border-gray-100 dark:border-zinc-800">
+          <AppContent 
+            user={currentUser} 
+            onLogout={() => setCurrentUser(null)} 
+            onDeleteUser={() => {
+              setUsers(prev => prev.filter(u => u.id !== currentUser.id));
+              removeLocalKey(`hydration_settings_${currentUser.id}`);
+              removeLocalKey(`hydration_logs_${currentUser.id}`);
+              setCurrentUser(null);
+            }}
+          />
+        </div>
       </div>
     </HydrationProvider>
   );

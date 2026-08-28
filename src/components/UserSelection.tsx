@@ -88,7 +88,7 @@ export function UserSelection({ users, setUsers, onSelectUser }: Props) {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] max-w-md mx-auto bg-gradient-to-br from-[#f7fafe] to-[#d8e2ff] text-slate-900 shadow-xl relative z-0">
+    <div className="flex flex-col h-[100dvh] bg-white dark:bg-zinc-900 text-slate-900 relative z-0">
       <div className="absolute bottom-0 left-0 w-full h-[50dvh] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNDQwIDMyMCI+PHBhdGggZmlsbD0iIzAwNThiZiIgZmlsbC1vcGFjaXR5PSIwLjAzIiBkPSJNMiwxNjBMODQsMTc2Qzk2LDE5MiwxOTIsMjI0LDI4OCwyMTMuM0MzODQsMjAzLDQ4MCwxNDksNTc2LDE0NEM2NzIsMTM5LDc2OCwxODEsODY0LDE5MkM5NjAsMjAzLDEwNTYsMTgxLDExNTIsMTQ5LjNDMTI0OCwxMTcsMTM0NCw3NSwxMzkyLDUzLjNMMTQ0MCwzMkwxNDQwLDMyMEwxMzkyLDMyMEMxMzQ0LDMyMCwxMjQ4LDMyMCwxMTUyLDMyMEMxMDU2LDMyMCw5NjAsMzIwLDg2NCwzMjBDNzY4LDMyMCw2NzIsMzIwLDU3NiwzMjBDNDgwLDMyMCwzODQsMzIwLDI4OCwzMjBDMTkyLDMyMCw5NiwzMjAsNDgsMzIwTDAsMzIwWiI+PC9wYXRoPjwvc3ZnPg==')] bg-bottom bg-no-repeat bg-cover -z-10 pointer-events-none"></div>
 
       <header className="flex flex-col items-center mt-12 mb-8 relative z-10 px-6 text-center">
@@ -307,7 +307,7 @@ export function UserSelection({ users, setUsers, onSelectUser }: Props) {
                 By continuing you agree to our terms
               </p>
               <p className="text-center text-slate-400 text-[10px] font-medium tracking-widest uppercase">
-                v1.0.0
+                v0.1.0
               </p>
             </div>
           </div>
